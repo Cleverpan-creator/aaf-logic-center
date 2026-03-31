@@ -3,38 +3,104 @@ import datetime
 import os
 
 def update():
+    # Bibliothèque complète des erreurs AAF (Table de référence 2026)
     aaf_errors = [
+        # --- ADOBE PREMIERE PRO ---
         {
             "code": "FFFFFC2B",
             "software": "Adobe Premiere Pro",
-            "issue": "Sample Rate Mismatch",
-            "recommendation": "Convertir en WAV 48kHz / 24-bit.",
-            "reliability_score": 90
+            "issue": "Sample Rate Mismatch / Audio Drift",
+            "recommendation": "Incompatibilité de fréquence. Convertir tous les assets (MP3/44.1kHz) en WAV 48kHz / 24-bit avant l'export.",
+            "reliability_score": 95
         },
         {
             "code": "Essence Data Write Error",
             "software": "Adobe Premiere Pro",
-            "issue": "Echec d'encapsulage",
-            "recommendation": "Utiliser 'Separate Audio' ou Premiere 25.0.",
+            "issue": "Échec d'encapsulage AAF (Embedded)",
+            "recommendation": "Désactiver 'Embedded Audio'. Exporter en 'Separate Audio' (Broadcast Wave) pour isoler le fichier corrompu.",
+            "reliability_score": 90
+        },
+        {
+            "code": "Audio Extractor Failure",
+            "software": "Adobe Premiere Pro",
+            "issue": "Conflit avec un Plugin VST ou Merged Clip",
+            "recommendation": "Faire un 'Render and Replace' des pistes audio avec effets ou désactiver les plugins tiers sur la timeline.",
             "reliability_score": 85
+        },
+
+        # --- AVID MEDIA COMPOSER ---
+        {
+            "code": "CM_OFFSET_OUT_OF_RANGE",
+            "software": "Avid Media Composer",
+            "issue": "Indexation de base de données corrompue",
+            "recommendation": "Supprimer les fichiers .pmr et .mdb dans Avid MediaFiles. Relancer Avid pour forcer le re-scan des médias.",
+            "reliability_score": 98
+        },
+        {
+            "code": "AAF_ERROR_FAILED",
+            "software": "Avid Media Composer",
+            "issue": "Illegal Character in Clip Name",
+            "recommendation": "Vérifier les noms de clips/bins. Supprimer les caractères spéciaux (/, \, *, ?, :) avant l'export.",
+            "reliability_score": 90
+        },
+        {
+            "code": "Exception: AFileTransfer::",
+            "software": "Avid Media Composer",
+            "issue": "Problème d'écriture sur disque (Permissions)",
+            "recommendation": "Vérifier l'espace disque ou les droits d'écriture du dossier cible. Essayer d'exporter sur un disque local (Bureau).",
+            "reliability_score": 88
+        },
+
+        # --- DAVINCI RESOLVE ---
+        {
+            "code": "Failed to encode audio clip",
+            "software": "DaVinci Resolve",
+            "issue": "Variable Speed / Retime incompatible",
+            "recommendation": "L'AAF ne gère pas les effets de vitesse. Faire un 'Render in Place' (clic droit sur le clip) avant d'exporter.",
+            "reliability_score": 92
+        },
+        {
+            "code": "Timeline Gap Error",
+            "software": "DaVinci Resolve",
+            "issue": "Vides (Gaps) provoquant un décalage au mixage",
+            "recommendation": "Remplir les trous de la timeline audio avec du silence (Slug/Generator) pour maintenir la structure de l'AAF.",
+            "reliability_score": 80
+        },
+
+        # --- PRO TOOLS (RÉCEPTION) ---
+        {
+            "code": "Magic ID Mismatch",
+            "software": "Pro Tools (Import)",
+            "issue": "Version AAF trop récente ou corrompue",
+            "recommendation": "Demander un export AAF 'Legacy' ou passer par un XML vers Resolve pour régénérer un AAF propre.",
+            "reliability_score": 85
+        },
+        {
+            "code": "Could not complete Open Session",
+            "software": "Pro Tools (Import)",
+            "issue": "Format de fichier 32-bit float non supporté",
+            "recommendation": "Demander au monteur de convertir l'export en 24-bit PCM (Linear) au lieu de 32-bit float.",
+            "reliability_score": 90
         }
     ]
 
     try:
+        # Construction de l'objet final
         data = {
             "last_updated": str(datetime.date.today()),
             "status": "Production",
             "errors": aaf_errors
         }
         
-        # On vérifie si le fichier existe, sinon on le crée proprement
+        # Sauvegarde propre en JSON
         with open('database.json', 'w', encoding='utf-8') as f:
             json.dump(data, f, indent=4, ensure_ascii=False)
-        print("Succès : database.json mis à jour.")
+            
+        print("Succès : database.json mis à jour avec la bibliothèque complète.")
             
     except Exception as e:
-        print(f"Erreur : {e}")
-        exit(1) # Informe GitHub que ça a échoué
+        print(f"Erreur lors de la mise à jour : {e}")
+        exit(1)
 
 if __name__ == "__main__":
     update()
