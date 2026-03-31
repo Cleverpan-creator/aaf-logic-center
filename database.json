@@ -1,11 +1,20 @@
 {
     "last_updated": "2026-03-31",
+    "status": "Production",
     "errors": [
         {
-            "code": "INIT",
-            "software": "System",
-            "status": "Ready",
-            "fix": "Database initialized"
+            "code": "FFFFFC2B",
+            "software": "Adobe Premiere Pro",
+            "issue": "Sample Rate Mismatch",
+            "recommendation": "Convertir en WAV 48kHz / 24-bit.",
+            "reliability_score": 90
+        },
+        {
+            "code": "Essence Data Write Error",
+            "software": "Adobe Premiere Pro",
+            "issue": "Echec d'encapsulage",
+            "recommendation": "Utiliser 'Separate Audio' ou Premiere 25.0.",
+            "reliability_score": 85
         }
     ]
 }
