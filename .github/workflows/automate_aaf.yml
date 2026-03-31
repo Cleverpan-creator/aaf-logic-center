@@ -1,8 +1,8 @@
 name: Automate AAF Data
 on:
   schedule:
-    - cron: '0 0 * * *' # S'exécute chaque nuit à minuit
-  workflow_dispatch: # Permet de le lancer à la main pour tester
+    - cron: '0 0 * * *'
+  workflow_dispatch:
 
 jobs:
   build:
@@ -11,12 +11,12 @@ jobs:
       contents: write
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4 # Mis à jour de v3 à v4
+        uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v5 # Mis à jour de v4 à v5
+        uses: actions/setup-python@v5
         with:
-          python-version: '3.11' # On passe aussi sur un Python plus récent (3.11)
+          python-version: '3.11'
 
       - name: Run Update
         run: python update_script.py
@@ -26,5 +26,5 @@ jobs:
           git config --global user.name 'AAF-Robot'
           git config --global user.email 'bot@github.com'
           git add database.json
-          git commit -m "Auto-update with modern actions" || exit 0
+          git commit -m "Fix: modern actions and data update" || exit 0
           git push
