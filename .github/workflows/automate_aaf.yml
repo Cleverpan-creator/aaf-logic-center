@@ -1,0 +1,30 @@
+name: Automate AAF Data
+on:
+  schedule:
+    - cron: '0 0 * * *' # S'exécute chaque nuit à minuit
+  workflow_dispatch: # Permet de le lancer à la main pour tester
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Run Update
+        run: python update_script.py
+
+      - name: Save Changes
+        run: |
+          git config --global user.name 'AAF-Robot'
+          git config --global user.email 'bot@github.com'
+          git add database.json
+          git commit -m "Auto-update" || exit 0
+          git push
