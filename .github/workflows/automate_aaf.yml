@@ -1,17 +1,19 @@
 name: Automate AAF Data
+
 on:
   schedule:
     - cron: '0 0 * * *'
   workflow_dispatch:
 
 env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true # Cette ligne règle l'alerte définitivement
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   build:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -21,13 +23,13 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Run Update
+      - name: Run Update Script
         run: python update_script.py
 
-      - name: Save Changes
+      - name: Commit and Push changes
         run: |
-          git config --global user.name 'AAF-Robot'
+          git config --global user.name 'AAF-Bot'
           git config --global user.email 'bot@github.com'
           git add database.json
-          git commit -m "Fix: suppress node24 warning" || exit 0
+          git commit -m "Auto-update database" || exit 0
           git push
