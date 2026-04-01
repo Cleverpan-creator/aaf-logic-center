@@ -1,41 +1,45 @@
 import os
 import json
 import datetime
-import praw
+import urllib.request
+import ssl
+import xml.etree.ElementTree as ET
 import anthropic
 
-# --- CONFIGURATION VIA SECRETS ---
-REDDIT_CLIENT_ID = os.environ["REDDIT_CLIENT_ID"]
-REDDIT_CLIENT_SECRET = os.environ["REDDIT_CLIENT_SECRET"]
 ANTHROPIC_API_KEY = os.environ["ANTHROPIC_API_KEY"]
 
-SUBREDDITS = ["editors", "premiere", "Avid", "VideoEditing", "davinciresolve"]
-KEYWORDS = ["AAF", "OMF", "Pro Tools", "export audio", "AAF error", "AAF import"]
-DAYS_BACK = 7
+RSS_FEEDS = [
+    "https://www.reddit.com/r/editors/search.rss?q=AAF&sort=new&t=week",
+    "https://www.reddit.com/r/premiere/search.rss?q=AAF+export&sort=new&t=week",
+    "https://www.reddit.com/r/Avid/search.rss?q=AAF&sort=new&t=week",
+    "https://www.reddit.com/r/VideoEditing/search.rss?q=AAF+error&sort=new&t=week",
+    "https://www.reddit.com/r/davinciresolve/search.rss?q=AAF&sort=new&t=week",
+]
 
-def collect_reddit_posts():
-    reddit = praw.Reddit(
-        client_id=REDDIT_CLIENT_ID,
-        client_secret=REDDIT_CLIENT_SECRET,
-        user_agent="AAFDropnCheck-Veille/1.0"
-    )
+def fetch_rss_posts():
+    ctx = ssl.create_default_context()
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
     posts = []
-    cutoff = datetime.datetime.utcnow() - datetime.timedelta(days=DAYS_BACK)
-    for sub in SUBREDDITS:
+    for url in RSS_FEEDS:
         try:
-            for submission in reddit.subreddit(sub).new(limit=100):
-                if datetime.datetime.utcfromtimestamp(submission.created_utc) < cutoff:
-                    continue
-                text = f"{submission.title} {submission.selftext}"
-                if any(kw.lower() in text.lower() for kw in KEYWORDS):
+            req = urllib.request.Request(url, headers={"User-Agent": "AAFDropnCheck-Veille/1.0"})
+            with urllib.request.urlopen(req, timeout=10, context=ctx) as r:
+                content = r.read().decode("utf-8")
+            root = ET.fromstring(content)
+            ns = {"atom": "http://www.w3.org/2005/Atom"}
+            for entry in root.findall("atom:entry", ns):
+                title = entry.find("atom:title", ns)
+                summary = entry.find("atom:summary", ns)
+                link = entry.find("atom:link", ns)
+                if title is not None:
                     posts.append({
-                        "source": f"r/{sub}",
-                        "title": submission.title,
-                        "text": submission.selftext[:500],
-                        "url": submission.url
+                        "title": title.text or "",
+                        "text": (summary.text or "")[:500] if summary is not None else "",
+                        "url": link.get("href", "") if link is not None else ""
                     })
         except Exception as e:
-            print(f"Erreur r/{sub}: {e}")
+            print(f"Erreur RSS {url}: {e}")
     print(f"{len(posts)} posts collectes.")
     return posts
 
@@ -44,22 +48,22 @@ def analyze_with_ai(posts):
         return []
     client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
     compiled = "\n\n".join([
-        f"[{p['source']}] {p['title']}\n{p['text']}" for p in posts
+        f"TITRE: {p['title']}\nCONTENU: {p['text']}" for p in posts[:30]
     ])
     system_prompt = """Tu es un expert en post-production audio et video.
 Analyse ces posts de forums. Ignore les plaintes non techniques et les questions generales.
 Isole uniquement les bugs averes lies aux exports/imports AAF, OMF, ou aux echanges NLE vers DAW.
 Reponds UNIQUEMENT avec un tableau JSON strict, sans texte avant ou apres.
 Chaque objet doit avoir exactement ces champs :
-- code : le code erreur ou mot-cle technique (ex: FFFFFC2B, Essence Data Write Error)
-- software : le logiciel source du probleme (ex: Premiere Pro, Avid Media Composer, DaVinci Resolve)
+- code : le code erreur ou mot-cle technique
+- software : le logiciel source du probleme
 - issue : description courte du probleme en francais
 - recommendation : action corrective concrete en francais
-- reliability_score : score de 0 a 100 base sur la frequence et la precision des rapports
+- reliability_score : score de 0 a 100
 Si aucun bug technique AAF n'est trouve, reponds avec un tableau vide : []"""
 
     message = client.messages.create(
-        model="claude-opus-4-20250514",
+        model="claude-sonnet-4-20250514",
         max_tokens=2000,
         system=system_prompt,
         messages=[{"role": "user", "content": compiled}]
@@ -70,7 +74,7 @@ Si aucun bug technique AAF n'est trouve, reponds avec un tableau vide : []"""
         print(f"{len(errors)} erreurs detectees par l'IA.")
         return errors
     except json.JSONDecodeError:
-        print(f"Erreur de parsing JSON : {raw[:200]}")
+        print(f"Erreur parsing JSON: {raw[:200]}")
         return []
 
 def update_quarantine(new_errors):
@@ -80,17 +84,15 @@ def update_quarantine(new_errors):
             existing = json.load(f)
     else:
         existing = {"pending": [], "last_updated": ""}
-
     existing["pending"].extend(new_errors)
     existing["last_updated"] = str(datetime.date.today())
     existing["count"] = len(existing["pending"])
-
     with open(pending_file, "w", encoding="utf-8") as f:
         json.dump(existing, f, indent=4, ensure_ascii=False)
     print(f"Quarantaine mise a jour : {len(existing['pending'])} erreurs en attente.")
 
 if __name__ == "__main__":
-    posts = collect_reddit_posts()
+    posts = fetch_rss_posts()
     errors = analyze_with_ai(posts)
     if errors:
         update_quarantine(errors)
