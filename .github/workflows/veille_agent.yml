@@ -1,0 +1,40 @@
+name: AAF Veille Agent Weekly
+
+on:
+  schedule:
+    - cron: '0 3 * * 1'
+  workflow_dispatch:
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  veille:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install anthropic
+
+      - name: Run Veille Agent
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: python veille_agent.py
+
+      - name: Commit results
+        run: |
+          git config --global user.name 'AAF-Veille-Bot'
+          git config --global user.email 'bot@github.com'
+          git add pending_errors.json
+          git commit -m "Weekly veille: nouvelles erreurs AAF" || exit 0
+          git push
