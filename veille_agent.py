@@ -4,9 +4,9 @@ import datetime
 import urllib.request
 import ssl
 import xml.etree.ElementTree as ET
-import anthropic
-
-ANTHROPIC_API_KEY = os.environ["ANTHROPIC_API_KEY"]
+import urllib.request
+import json
+GEMINI_API_KEY = os.environ["GEMINI_API_KEY"]
 
 RSS_FEEDS = [
     "https://www.reddit.com/r/editors/search.rss?q=AAF&sort=new&t=week",
@@ -46,35 +46,42 @@ def fetch_rss_posts():
 def analyze_with_ai(posts):
     if not posts:
         return []
-    client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
     compiled = "\n\n".join([
         f"TITRE: {p['title']}\nCONTENU: {p['text']}" for p in posts[:30]
     ])
-    system_prompt = """Tu es un expert en post-production audio et video.
-Analyse ces posts de forums. Ignore les plaintes non techniques et les questions generales.
+    prompt = """Tu es un expert en post-production audio et video.
+Analyse ces posts de forums. Ignore les plaintes non techniques.
 Isole uniquement les bugs averes lies aux exports/imports AAF, OMF, ou aux echanges NLE vers DAW.
 Reponds UNIQUEMENT avec un tableau JSON strict, sans texte avant ou apres.
 Chaque objet doit avoir exactement ces champs :
 - code : le code erreur ou mot-cle technique
-- software : le logiciel source du probleme
-- issue : description courte du probleme en francais
-- recommendation : action corrective concrete en francais
+- software : le logiciel source
+- issue : description courte en francais
+- recommendation : action corrective en francais
 - reliability_score : score de 0 a 100
-Si aucun bug technique AAF n'est trouve, reponds avec un tableau vide : []"""
+Si aucun bug AAF n'est trouve, reponds avec : []
 
-    message = client.messages.create(
-        model="claude-sonnet-4-20250514",
-        max_tokens=2000,
-        system=system_prompt,
-        messages=[{"role": "user", "content": compiled}]
-    )
-    raw = message.content[0].text.strip()
+""" + compiled
+
+    ctx = ssl.create_default_context()
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
+
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
+    payload = json.dumps({
+        "contents": [{"parts": [{"text": prompt}]}]
+    }).encode("utf-8")
+    req = urllib.request.Request(url, data=payload, headers={"Content-Type": "application/json"})
     try:
+        with urllib.request.urlopen(req, timeout=30, context=ctx) as r:
+            response = json.loads(r.read().decode("utf-8"))
+        raw = response["candidates"][0]["content"]["parts"][0]["text"].strip()
+        raw = raw.replace("```json", "").replace("```", "").strip()
         errors = json.loads(raw)
-        print(f"{len(errors)} erreurs detectees par l'IA.")
+        print(f"{len(errors)} erreurs detectees.")
         return errors
-    except json.JSONDecodeError:
-        print(f"Erreur parsing JSON: {raw[:200]}")
+    except Exception as e:
+        print(f"Erreur Gemini: {e}")
         return []
 
 def update_quarantine(new_errors):
