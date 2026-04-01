@@ -35,6 +35,6 @@ jobs:
         run: |
           git config --global user.name 'AAF-Veille-Bot'
           git config --global user.email 'bot@github.com'
-          git add pending_errors.json
-          git commit -m "Weekly veille: nouvelles erreurs AAF" || exit 0
-          git push
+          git add pending_errors.json 2>/dev/null || true
+          git diff --staged --quiet || git commit -m "Weekly veille: nouvelles erreurs AAF"
+          git push || true
