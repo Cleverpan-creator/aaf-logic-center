@@ -21,25 +21,30 @@ def fetch_rss_posts():
     ctx.check_hostname = False
     ctx.verify_mode = ssl.CERT_NONE
     posts = []
-    for url in RSS_FEEDS:
+    
+    searches = [
+        "https://www.reddit.com/r/editors/search.json?q=AAF&sort=new&t=week&limit=10",
+        "https://www.reddit.com/r/premiere/search.json?q=AAF+export&sort=new&t=week&limit=10",
+        "https://www.reddit.com/r/Avid/search.json?q=AAF&sort=new&t=week&limit=10",
+        "https://www.reddit.com/r/VideoEditing/search.json?q=AAF+error&sort=new&t=week&limit=10",
+        "https://www.reddit.com/r/davinciresolve/search.json?q=AAF&sort=new&t=week&limit=10",
+    ]
+    
+    for url in searches:
         try:
             req = urllib.request.Request(url, headers={"User-Agent": "AAFDropnCheck-Veille/1.0"})
             with urllib.request.urlopen(req, timeout=10, context=ctx) as r:
-                content = r.read().decode("utf-8")
-            root = ET.fromstring(content)
-            ns = {"atom": "http://www.w3.org/2005/Atom"}
-            for entry in root.findall("atom:entry", ns):
-                title = entry.find("atom:title", ns)
-                summary = entry.find("atom:summary", ns)
-                link = entry.find("atom:link", ns)
-                if title is not None:
-                    posts.append({
-                        "title": title.text or "",
-                        "text": (summary.text or "")[:500] if summary is not None else "",
-                        "url": link.get("href", "") if link is not None else ""
-                    })
+                data = json.loads(r.read().decode("utf-8"))
+            for child in data.get("data", {}).get("children", []):
+                post = child.get("data", {})
+                title = post.get("title", "")
+                text = post.get("selftext", "")[:500]
+                url_post = post.get("url", "")
+                if title:
+                    posts.append({"title": title, "text": text, "url": url_post})
         except Exception as e:
-            print(f"Erreur RSS {url}: {e}")
+            print(f"Erreur JSON {url}: {e}")
+    
     print(f"{len(posts)} posts collectes.")
     return posts
 
